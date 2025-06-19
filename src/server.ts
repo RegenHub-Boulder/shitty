@@ -400,6 +400,30 @@ const server = Bun.serve({
         animation: floatingShit 3s ease-in-out infinite;
       }
       
+      .shit-float-1 {
+        animation: floatingShit 2.8s ease-in-out infinite 0s;
+      }
+      
+      .shit-float-2 {
+        animation: floatingShit 3.2s ease-in-out infinite 0.3s;
+      }
+      
+      .shit-float-3 {
+        animation: floatingShit 2.9s ease-in-out infinite 0.6s;
+      }
+      
+      .shit-float-4 {
+        animation: floatingShit 3.1s ease-in-out infinite 0.9s;
+      }
+      
+      .shit-float-5 {
+        animation: floatingShit 2.7s ease-in-out infinite 1.2s;
+      }
+      
+      .shit-float-6 {
+        animation: floatingShit 3.3s ease-in-out infinite 1.5s;
+      }
+      
       @keyframes floatingShit {
         0% { transform: translateY(0px); }
         50% { transform: translateY(-15px); }

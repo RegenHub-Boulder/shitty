@@ -148,10 +148,10 @@ function App() {
     <SyncIdContext.Provider value={syncId}>
       <div className="flex flex-col min-h-screen bg-gradient-to-br from-amber-100 via-yellow-50 to-orange-100">
         <header className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 shadow-md">
-          <Link to="/" className="text-2xl font-bold text-amber-800 hover:text-amber-900">💩 Shitty</Link>
+          <Link to="/" className="text-3xl font-bold text-amber-800 hover:text-amber-900">💩 Shitty</Link>
           <nav>
-            <Link to={`/history`} className="mr-4 text-amber-700 hover:text-amber-900">History</Link>
-            <Link to={`/settings`} className="text-amber-700 hover:text-amber-900">Settings</Link>
+            <Link to={`/history`} className="mr-4 text-xl text-amber-700 hover:text-amber-900">History</Link>
+            <Link to={`/settings`} className="text-xl text-amber-700 hover:text-amber-900">Settings</Link>
           </nav>
         </header>
         <main className="flex-grow flex items-center justify-center">
@@ -172,7 +172,7 @@ function App() {
           </Routes>
         </main>
         <footer className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 text-center text-amber-700">
-          <a href="https://www.val.town/x/jonbo/planty" target="_top" className="hover:text-amber-900">
+          <a href="https://www.val.town/x/jonbo/planty" target="_top" className="text-xl hover:text-amber-900">
             made with ❤️ at RegenHub
           </a>
         </footer>
@@ -230,31 +230,13 @@ function ShitView() {
         </div>
       </div>
     );
-  } else if (choreCount === 1) {
-    // Single chore centered (original layout)
-    return (
-      <div className={containerClass}>
-        <ShitPile chore={chores[0]} onTended={fetchChoresInternal} />
-      </div>
-    );
-  } else if (choreCount === 2) {
-    // Two chores side by side
-    return (
-      <div className={containerClass}>
-        <div className="flex gap-8 md:gap-16">
-          {chores.map(chore => (
-            <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} />
-          ))}
-        </div>
-      </div>
-    );
   } else {
-    // Three or more chores in a grid
+    // Single row layout for 1-6 chores
     return (
       <div className={containerClass}>
-        <div className="grid grid-cols-3 gap-4 md:gap-8 max-w-4xl">
-          {chores.map(chore => (
-            <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} />
+        <div className="flex gap-4 items-start justify-center flex-wrap">
+          {chores.slice(0, 6).map((chore, index) => (
+            <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} animationIndex={index} />
           ))}
         </div>
       </div>
@@ -262,7 +244,7 @@ function ShitView() {
   }
 }
 
-function ShitPile({ chore, onTended }: { chore: any; onTended: () => void }) {
+function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: any; onTended: () => void; animationIndex?: number }) {
   const syncId = useSyncId();
   const [lastTended, setLastTended] = useState(null);
   const [lastCareTaker, setLastCareTaker] = useState(null);
@@ -359,8 +341,14 @@ function ShitPile({ chore, onTended }: { chore: any; onTended: () => void }) {
     return `text-amber-800 ${opacityClass}`;
   }
 
+  function getAnimationClass() {
+    // Cycle through the available animation classes
+    const animationClasses = ['shit-float-1', 'shit-float-2', 'shit-float-3', 'shit-float-4', 'shit-float-5', 'shit-float-6'];
+    return animationClasses[animationIndex % animationClasses.length];
+  }
+
   return (
-    <div className="text-center flex flex-col justify-center items-center h-full">
+    <div className="text-center flex flex-col items-center w-48">
       {isLoading
         ? (
           <div className="text-2xl text-amber-700">
@@ -373,14 +361,14 @@ function ShitPile({ chore, onTended }: { chore: any; onTended: () => void }) {
         : (
           <>
             <div
-              className="text-9xl cursor-pointer mb-4 shit-float relative z-10"
+              className={`text-9xl cursor-pointer mb-4 ${getAnimationClass()} relative z-10 h-28 flex items-center justify-center`}
               onClick={() => setShowModal(true)}
             >
               {chore.icon}
             </div>
-            <h3 className="text-xl font-semibold text-amber-800 mb-2">{chore.name}</h3>
+            <h3 className="text-2xl font-semibold text-amber-800 mb-2 h-16 flex items-center justify-center leading-tight">{chore.name}</h3>
             {/* Using refreshKey to trigger re-renders without affecting the DOM structure */}
-            <div key={refreshKey} className={`text-lg ${getTextColorClass()}`}>
+            <div key={refreshKey} className={`text-lg ${getTextColorClass()} leading-tight`}>
               {lastTended === null || typeof lastTended === "undefined" 
                 ? "no tending logged"
                 : `Last tended ${getTimeSinceLastTending()}${lastCareTaker ? ` by ${lastCareTaker}` : ""}`
@@ -521,13 +509,8 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg p-6 w-full max-w-md border-2 border-amber-200 shadow-xl relative z-50">
-        <h2 className="text-2xl mb-4 text-amber-800 font-bold">Who's tending {chore.name}? {chore.icon}</h2>
+        <h2 className="text-2xl mb-4 text-amber-800 font-bold">Who's logging {chore.name}?</h2>
 
-        <p className="pb-2 text-amber-700">
-          <i>
-            Track when this task was last completed.
-          </i>
-        </p>
 
         {/* Unified caretakers list */}
         <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
@@ -562,7 +545,7 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
                 setNewCareTakerName(e.target.value);
                 setSelectedCareTaker(null); // Clear selection when typing
               }}
-              placeholder="+ Add new caretaker"
+              placeholder="+ Add new tender"
               className={`w-full bg-transparent focus:outline-none ${
                 !selectedCareTaker && newCareTakerName
                   ? "text-white placeholder-amber-100"
