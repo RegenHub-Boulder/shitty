@@ -88,6 +88,7 @@ async function updateInstanceData(
 
 const server = Bun.serve({
   port: isDev ? 3000 : (process.env.PORT || 3000),
+  hostname: process.env.HOST || "0.0.0.0",
   async fetch(req: Request) {
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/").filter(p => p.trim() !== "");
