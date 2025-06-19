@@ -87,4 +87,5 @@ For self-hosting on your Mac:
 2. Start production server: `bun run start`
 3. Access via local network IP for other devices
 
+
 The app works great as a kitchen tablet display or shared household dashboard!
