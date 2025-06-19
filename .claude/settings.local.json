@@ -11,7 +11,11 @@
       "Bash(bun add:*)",
       "mcp__ide__getDiagnostics",
       "WebFetch(domain:docs.anthropic.com)",
-      "Bash(rg:*)"
+      "Bash(rg:*)",
+      "Bash(sed:*)",
+      "Bash(bunx tsc:*)",
+      "Bash(bun build:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": []
   }

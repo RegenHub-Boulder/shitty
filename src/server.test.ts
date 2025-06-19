@@ -12,10 +12,10 @@ beforeEach(() => {
   testDb.exec(`
     CREATE TABLE IF NOT EXISTS shitty_instances (
       sync_id TEXT PRIMARY KEY,
-      caretakers TEXT DEFAULT '[]',
+      tenders TEXT DEFAULT '[]',
       tending_log TEXT DEFAULT '[]',
       last_tended_timestamp INTEGER,
-      last_caretaker TEXT,
+      last_tender TEXT,
       chores TEXT DEFAULT '[]'
     )
   `);
@@ -33,7 +33,7 @@ afterEach(() => {
 // Helper functions extracted from server.ts for testing
 async function getInstanceData(syncId: string, db = testDb) {
   const query = db.query(`
-    SELECT caretakers, tending_log, last_tended_timestamp, last_caretaker, chores 
+    SELECT tenders, tending_log, last_tended_timestamp, last_tender, chores 
     FROM shitty_instances WHERE sync_id = ?
   `);
   
@@ -47,7 +47,7 @@ async function getInstanceData(syncId: string, db = testDb) {
     };
     
     const insertQuery = db.query(`
-      INSERT INTO shitty_instances (sync_id, caretakers, tending_log, last_tended_timestamp, last_caretaker, chores) 
+      INSERT INTO shitty_instances (sync_id, tenders, tending_log, last_tended_timestamp, last_tender, chores) 
       VALUES (?, '[]', '[]', NULL, NULL, ?)
     `);
     
@@ -56,10 +56,10 @@ async function getInstanceData(syncId: string, db = testDb) {
   }
   
   return {
-    caretakers: JSON.parse(result.caretakers || "[]"),
+    tenders: JSON.parse(result.tenders || "[]"),
     tending_log: JSON.parse(result.tending_log || "[]"),
     last_tended_timestamp: result.last_tended_timestamp,
-    last_caretaker: result.last_caretaker,
+    last_tender: result.last_tender,
     chores: JSON.parse(result.chores || "[]"),
   };
 }
@@ -67,25 +67,25 @@ async function getInstanceData(syncId: string, db = testDb) {
 async function updateInstanceData(
   syncId: string,
   data: {
-    caretakers: any[];
+    tenders: any[];
     tending_log: any[];
     last_tended_timestamp: number | null;
-    last_caretaker: string | null;
+    last_tender: string | null;
     chores: any[];
   },
   db = testDb
 ) {
   const query = db.query(`
     UPDATE shitty_instances 
-    SET caretakers = ?, tending_log = ?, last_tended_timestamp = ?, last_caretaker = ?, chores = ? 
+    SET tenders = ?, tending_log = ?, last_tended_timestamp = ?, last_tender = ?, chores = ? 
     WHERE sync_id = ?
   `);
   
   query.run(
-    JSON.stringify(data.caretakers),
+    JSON.stringify(data.tenders),
     JSON.stringify(data.tending_log),
     data.last_tended_timestamp,
-    data.last_caretaker,
+    data.last_tender,
     JSON.stringify(data.chores),
     syncId
   );
@@ -96,10 +96,10 @@ describe("Database Helper Functions", () => {
     const syncId = "test-sync-id";
     const data = await getInstanceData(syncId);
     
-    expect(data.caretakers).toEqual([]);
+    expect(data.tenders).toEqual([]);
     expect(data.tending_log).toEqual([]);
     expect(data.last_tended_timestamp).toBeNull();
-    expect(data.last_caretaker).toBeNull();
+    expect(data.last_tender).toBeNull();
     expect(data.chores).toHaveLength(1);
     expect(data.chores[0].name).toBe("Water the plants");
     expect(data.chores[0].icon).toBe("🪴");
@@ -114,17 +114,17 @@ describe("Database Helper Functions", () => {
     
     // Manually update the instance
     const updatedData = {
-      caretakers: [{ id: "c1", name: "John" }],
+      tenders: [{ id: "c1", name: "John" }],
       tending_log: [],
       last_tended_timestamp: null,
-      last_caretaker: null,
+      last_tender: null,
       chores: [{ id: "ch1", name: "Test Chore", icon: "🧹" }]
     };
     await updateInstanceData(syncId, updatedData);
     
     // Second call should return the updated data
     const data = await getInstanceData(syncId);
-    expect(data.caretakers).toEqual([{ id: "c1", name: "John" }]);
+    expect(data.tenders).toEqual([{ id: "c1", name: "John" }]);
     expect(data.chores).toEqual([{ id: "ch1", name: "Test Chore", icon: "🧹" }]);
   });
 
@@ -136,10 +136,10 @@ describe("Database Helper Functions", () => {
     
     // Update it
     const newData = {
-      caretakers: [{ id: "c1", name: "Alice" }, { id: "c2", name: "Bob" }],
+      tenders: [{ id: "c1", name: "Alice" }, { id: "c2", name: "Bob" }],
       tending_log: [{ id: "h1", timestamp: 1234567890, person: "Alice", chore_id: "ch1", notes: "Done!" }],
       last_tended_timestamp: 1234567890,
-      last_caretaker: "Alice",
+      last_tender: "Alice",
       chores: [{ id: "ch1", name: "Dishes", icon: "🍽️" }]
     };
     
@@ -147,13 +147,13 @@ describe("Database Helper Functions", () => {
     
     // Verify the update
     const data = await getInstanceData(syncId);
-    expect(data.caretakers).toHaveLength(2);
-    expect(data.caretakers[0].name).toBe("Alice");
-    expect(data.caretakers[1].name).toBe("Bob");
+    expect(data.tenders).toHaveLength(2);
+    expect(data.tenders[0].name).toBe("Alice");
+    expect(data.tenders[1].name).toBe("Bob");
     expect(data.tending_log).toHaveLength(1);
     expect(data.tending_log[0].person).toBe("Alice");
     expect(data.last_tended_timestamp).toBe(1234567890);
-    expect(data.last_caretaker).toBe("Alice");
+    expect(data.last_tender).toBe("Alice");
     expect(data.chores[0].name).toBe("Dishes");
   });
 });
@@ -179,24 +179,24 @@ describe("API Route Logic Tests", () => {
   });
 
   test("API URL parsing logic", () => {
-    const testUrl = "/api/test-sync-id/caretakers/item-123";
+    const testUrl = "/api/test-sync-id/tenders/item-123";
     const pathParts = testUrl.split("/").filter(p => p.trim() !== "");
     
     expect(pathParts[0]).toBe("api");
     expect(pathParts[1]).toBe("test-sync-id");
-    expect(pathParts[2]).toBe("caretakers");
+    expect(pathParts[2]).toBe("tenders");
     expect(pathParts[3]).toBe("item-123");
   });
 
-  test("caretaker creation logic", () => {
+  test("tender creation logic", () => {
     const name = "Test User";
-    const newCaretaker = { 
+    const newTender = { 
       id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
       name: name.trim() 
     };
     
-    expect(newCaretaker.name).toBe("Test User");
-    expect(newCaretaker.id).toMatch(/^c_\d+_[a-z0-9]{5}$/);
+    expect(newTender.name).toBe("Test User");
+    expect(newTender.id).toMatch(/^c_\d+_[a-z0-9]{5}$/);
   });
 
   test("chore creation logic", () => {
@@ -214,7 +214,7 @@ describe("API Route Logic Tests", () => {
   });
 
   test("tending log entry creation logic", () => {
-    const caretaker = "John Doe";
+    const tender = "John Doe";
     const choreId = "chore-123";
     const notes = "Completed successfully";
     const timestamp = Date.now();
@@ -222,7 +222,7 @@ describe("API Route Logic Tests", () => {
     const newLogEntry = {
       id: `h_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
       timestamp,
-      person: caretaker.trim(),
+      person: tender.trim(),
       chore_id: choreId.trim(),
       notes: notes && typeof notes === "string" ? notes.trim() : null,
     };

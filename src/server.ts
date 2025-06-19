@@ -17,10 +17,10 @@ function createErrorResponse(message: string, status: number = 400) {
 await db.exec(`
   CREATE TABLE IF NOT EXISTS shitty_instances (
     sync_id TEXT PRIMARY KEY,
-    caretakers TEXT DEFAULT '[]',
+    tenders TEXT DEFAULT '[]',
     tending_log TEXT DEFAULT '[]',
     last_tended_timestamp INTEGER,
-    last_caretaker TEXT,
+    last_tender TEXT,
     chores TEXT DEFAULT '[]'
   )
 `);
@@ -28,7 +28,7 @@ await db.exec(`
 // Helper functions
 async function getInstanceData(syncId: string) {
   const query = db.query(`
-    SELECT caretakers, tending_log, last_tended_timestamp, last_caretaker, chores 
+    SELECT tenders, tending_log, last_tended_timestamp, last_tender, chores 
     FROM shitty_instances WHERE sync_id = ?
   `);
   
@@ -43,7 +43,7 @@ async function getInstanceData(syncId: string) {
     };
     
     const insertQuery = db.query(`
-      INSERT INTO shitty_instances (sync_id, caretakers, tending_log, last_tended_timestamp, last_caretaker, chores) 
+      INSERT INTO shitty_instances (sync_id, tenders, tending_log, last_tended_timestamp, last_tender, chores) 
       VALUES (?, '[]', '[]', NULL, NULL, ?)
     `);
     
@@ -52,10 +52,10 @@ async function getInstanceData(syncId: string) {
   }
   
   return {
-    caretakers: JSON.parse(result.caretakers || "[]"),
+    tenders: JSON.parse(result.tenders || "[]"),
     tending_log: JSON.parse(result.tending_log || "[]"),
     last_tended_timestamp: result.last_tended_timestamp,
-    last_caretaker: result.last_caretaker,
+    last_tender: result.last_tender,
     chores: JSON.parse(result.chores || "[]"),
   };
 }
@@ -63,24 +63,24 @@ async function getInstanceData(syncId: string) {
 async function updateInstanceData(
   syncId: string,
   data: {
-    caretakers: any[];
+    tenders: any[];
     tending_log: any[];
     last_tended_timestamp: number | null;
-    last_caretaker: string | null;
+    last_tender: string | null;
     chores: any[];
   }
 ) {
   const query = db.query(`
     UPDATE shitty_instances 
-    SET caretakers = ?, tending_log = ?, last_tended_timestamp = ?, last_caretaker = ?, chores = ? 
+    SET tenders = ?, tending_log = ?, last_tended_timestamp = ?, last_tender = ?, chores = ? 
     WHERE sync_id = ?
   `);
   
   query.run(
-    JSON.stringify(data.caretakers),
+    JSON.stringify(data.tenders),
     JSON.stringify(data.tending_log),
     data.last_tended_timestamp,
-    data.last_caretaker,
+    data.last_tender,
     JSON.stringify(data.chores),
     syncId
   );
@@ -189,51 +189,51 @@ const server = Bun.serve({
       const apiResource = pathParts.length > 2 ? pathParts[2] : null;
       const itemId = pathParts.length > 3 ? pathParts[3] : null;
 
-      // Caretakers API
-      if (apiResource === "caretakers") {
+      // Tenders API
+      if (apiResource === "tenders") {
         let instanceData = await getInstanceData(syncId);
         
         if (req.method === "GET" && !itemId) {
-          return new Response(JSON.stringify(instanceData.caretakers), {
+          return new Response(JSON.stringify(instanceData.tenders), {
             headers: JSON_HEADERS,
           });
         } else if (req.method === "POST" && !itemId) {
           const { name } = await req.json();
           if (!name || typeof name !== "string") {
-            return createErrorResponse("Invalid name for caretaker");
+            return createErrorResponse("Invalid name for tender");
           }
-          const newCaretaker = { 
+          const newTender = { 
             id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
             name: name.trim() 
           };
-          instanceData.caretakers.push(newCaretaker);
+          instanceData.tenders.push(newTender);
           await updateInstanceData(syncId, instanceData);
-          return new Response(JSON.stringify(newCaretaker), {
+          return new Response(JSON.stringify(newTender), {
             status: 201,
             headers: JSON_HEADERS,
           });
         } else if (req.method === "PUT" && itemId) {
           const { name } = await req.json();
           if (!name || typeof name !== "string") {
-            return createErrorResponse("Invalid new name for caretaker");
+            return createErrorResponse("Invalid new name for tender");
           }
-          const caretakerIndex = instanceData.caretakers.findIndex((c: any) => c.id === itemId);
-          if (caretakerIndex > -1) {
-            instanceData.caretakers[caretakerIndex].name = name.trim();
+          const tenderIndex = instanceData.tenders.findIndex((c: any) => c.id === itemId);
+          if (tenderIndex > -1) {
+            instanceData.tenders[tenderIndex].name = name.trim();
             await updateInstanceData(syncId, instanceData);
-            return new Response(JSON.stringify(instanceData.caretakers[caretakerIndex]), {
+            return new Response(JSON.stringify(instanceData.tenders[tenderIndex]), {
               headers: JSON_HEADERS,
             });
           }
-          return createErrorResponse("Caretaker not found", 404);
+          return createErrorResponse("Tender not found", 404);
         } else if (req.method === "DELETE" && itemId) {
-          const initialLength = instanceData.caretakers.length;
-          instanceData.caretakers = instanceData.caretakers.filter((c: any) => c.id !== itemId);
-          if (instanceData.caretakers.length < initialLength) {
+          const initialLength = instanceData.tenders.length;
+          instanceData.tenders = instanceData.tenders.filter((c: any) => c.id !== itemId);
+          if (instanceData.tenders.length < initialLength) {
             await updateInstanceData(syncId, instanceData);
             return new Response(null, { status: 204 });
           }
-          return createErrorResponse("Caretaker not found", 404);
+          return createErrorResponse("Tender not found", 404);
         }
       }
       // Chores API
@@ -304,10 +304,10 @@ const server = Bun.serve({
                 entry.timestamp > latest.timestamp ? entry : latest
               );
               instanceData.last_tended_timestamp = lastEntry.timestamp;
-              instanceData.last_caretaker = lastEntry.person;
+              instanceData.last_tender = lastEntry.person;
             } else {
               instanceData.last_tended_timestamp = null;
-              instanceData.last_caretaker = null;
+              instanceData.last_tender = null;
             }
             await updateInstanceData(syncId, instanceData);
             return new Response(null, { status: 204 });
@@ -317,22 +317,22 @@ const server = Bun.serve({
       }
       // Tend Action API
       else if (apiResource === "tend" && req.method === "POST") {
-        const { caretaker, choreId, notes } = await req.json();
-        if (!caretaker || typeof caretaker !== "string" || !choreId || typeof choreId !== "string") {
-          return createErrorResponse("Invalid caretaker or chore identifier");
+        const { tender, choreId, notes } = await req.json();
+        if (!tender || typeof tender !== "string" || !choreId || typeof choreId !== "string") {
+          return createErrorResponse("Invalid tender or chore identifier");
         }
         const timestamp = Date.now();
         let instanceData = await getInstanceData(syncId);
         const newLogEntry = {
           id: `h_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
           timestamp,
-          person: caretaker.trim(),
+          person: tender.trim(),
           chore_id: choreId.trim(),
           notes: notes && typeof notes === "string" ? notes.trim() : null,
         };
         instanceData.tending_log.push(newLogEntry);
         instanceData.last_tended_timestamp = timestamp;
-        instanceData.last_caretaker = caretaker.trim();
+        instanceData.last_tender = tender.trim();
         await updateInstanceData(syncId, instanceData);
         return new Response(JSON.stringify(newLogEntry), {
           status: 201,
@@ -345,7 +345,7 @@ const server = Bun.serve({
         return new Response(
           JSON.stringify({
             lastTended: instanceData.last_tended_timestamp,
-            lastCareTaker: instanceData.last_caretaker,
+            lastTender: instanceData.last_tender,
           }),
           {
             headers: JSON_HEADERS,

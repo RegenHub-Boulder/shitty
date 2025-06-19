@@ -17,8 +17,25 @@ declare global {
   }
 }
 
-// PWA Versioning - matches server
-const PWA_APP_VERSION = "v1.0.7";
+// Type definitions
+interface Chore {
+  id: string;
+  name: string;
+  icon: string;
+}
+
+interface Tender {
+  id: string;
+  name: string;
+}
+
+interface HistoryEntry {
+  id: string;
+  timestamp: number;
+  person: string;
+  chore_id: string;
+  notes: string | null;
+}
 
 // --- Sync ID Management ---
 const LOCAL_STORAGE_SYNC_ID_KEY = "shitty_sync_id_valtown";
@@ -192,7 +209,7 @@ function RoutedApp() {
 
 function ShitView() {
   const syncId = useSyncId();
-  const [chores, setChores] = useState([]);
+  const [chores, setChores] = useState<Chore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   async function fetchChoresInternal() {
@@ -244,10 +261,10 @@ function ShitView() {
   }
 }
 
-function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: any; onTended: () => void; animationIndex?: number }) {
+function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTended: () => void; animationIndex?: number }) {
   const syncId = useSyncId();
-  const [lastTended, setLastTended] = useState(null);
-  const [lastCareTaker, setLastCareTaker] = useState(null);
+  const [lastTended, setLastTended] = useState<number | null>(null);
+  const [lastTender, setLastTender] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -266,15 +283,15 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: any; onTende
       if (choreHistory.length > 0) {
         const lastEntry = choreHistory[0]; // Already sorted by timestamp desc from API
         setLastTended(lastEntry.timestamp);
-        setLastCareTaker(lastEntry.person);
+        setLastTender(lastEntry.person);
       } else {
         setLastTended(null);
-        setLastCareTaker(null);
+        setLastTender(null);
       }
     } catch (error) {
       console.error("Error fetching last tended:", error);
       setLastTended(null);
-      setLastCareTaker(null);
+      setLastTender(null);
     }
     setIsLoading(false);
   }
@@ -371,13 +388,13 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: any; onTende
             <div key={refreshKey} className={`text-lg ${getTextColorClass()} leading-tight`}>
               {lastTended === null || typeof lastTended === "undefined" 
                 ? "no tending logged"
-                : `Last tended ${getTimeSinceLastTending()}${lastCareTaker ? ` by ${lastCareTaker}` : ""}`
+                : `Last tended ${getTimeSinceLastTending()}${lastTender ? ` by ${lastTender}` : ""}`
               }
             </div>
           </>
         )}
       {showModal && (
-        <CareTakerSelectionModal
+        <TenderSelectionModal
           chore={chore}
           onClose={() => setShowModal(false)}
           onTended={() => {
@@ -390,60 +407,60 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: any; onTende
   );
 }
 
-function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onClose: () => void; onTended: () => void }) {
+function TenderSelectionModal({ chore, onClose, onTended }: { chore: Chore; onClose: () => void; onTended: () => void }) {
   const syncId = useSyncId();
-  const [careTakers, setCareTakers] = useState([]);
-  const [recentCareTakers, setRecentCareTakers] = useState([]);
-  const [newCareTakerName, setNewCareTakerName] = useState("");
+  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [recentTenders, setRecentTenders] = useState<string[]>([]);
+  const [newTenderName, setNewTenderName] = useState("");
   const [notes, setNotes] = useState("");
   const [isAdding, setIsAdding] = useState(false);
-  const [selectedCareTaker, setSelectedCareTaker] = useState(null);
-  const [sortedCareTakers, setSortedCareTakers] = useState([]);
+  const [selectedTender, setSelectedTender] = useState<string | null>(null);
+  const [sortedTenders, setSortedTenders] = useState<Tender[]>([]);
 
-  async function fetchCareTakersInternal() {
+  async function fetchTendersInternal() {
     if (!syncId) return;
     try {
-      const response = await fetch(`/api/${syncId}/caretakers`);
+      const response = await fetch(`/api/${syncId}/tenders`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
-      setCareTakers(Array.isArray(data) ? data : []);
+      setTenders(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error("Error fetching caretakers:", error);
-      setCareTakers([]);
+      console.error("Error fetching tenders:", error);
+      setTenders([]);
     }
   }
 
-  async function fetchRecentCareTakersInternal() {
+  async function fetchRecentTendersInternal() {
     if (!syncId) return;
     try {
       const response = await fetch(`/api/${syncId}/history`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const data = await response.json();
 
-      // Extract unique caretaker names from recent history
+      // Extract unique tender names from recent history
       const uniqueNames = Array.isArray(data)
         ? [...new Set(data.slice(0, 10).map((entry: any) => entry.person))]
         : [];
 
-      setRecentCareTakers(uniqueNames);
+      setRecentTenders(uniqueNames);
     } catch (error) {
-      console.error("Error fetching recent caretakers:", error);
-      setRecentCareTakers([]);
+      console.error("Error fetching recent tenders:", error);
+      setRecentTenders([]);
     }
   }
 
-  // Create a sorted caretaker list with recent caretakers first
+  // Create a sorted tender list with recent tenders first
   useEffect(() => {
-    if (careTakers.length === 0) return;
+    if (tenders.length === 0) return;
 
-    // Create a map of recently used caretakers for faster lookups
+    // Create a map of recently used tenders for faster lookups
     const recentMap = new Map();
-    recentCareTakers.forEach((name, index) => {
+    recentTenders.forEach((name, index) => {
       recentMap.set(name, index);
     });
 
-    // Sort caretakers: recent ones first (in order of recency), then others alphabetically
-    const sorted = [...careTakers].sort((a: any, b: any) => {
+    // Sort tenders: recent ones first (in order of recency), then others alphabetically
+    const sorted = [...tenders].sort((a: any, b: any) => {
       const aIsRecent = recentMap.has(a.name);
       const bIsRecent = recentMap.has(b.name);
 
@@ -462,35 +479,35 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
       }
     });
 
-    setSortedCareTakers(sorted);
-  }, [careTakers, recentCareTakers]);
+    setSortedTenders(sorted);
+  }, [tenders, recentTenders]);
 
   useEffect(() => {
-    fetchCareTakersInternal();
-    fetchRecentCareTakersInternal();
+    fetchTendersInternal();
+    fetchRecentTendersInternal();
   }, [syncId]);
 
   async function handleTending() {
-    const careTakerName = selectedCareTaker || newCareTakerName.trim();
-    if (!syncId || !careTakerName) return;
+    const tenderName = selectedTender || newTenderName.trim();
+    if (!syncId || !tenderName) return;
 
     try {
       await fetch(`/api/${syncId}/tend`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          caretaker: careTakerName,
+          tender: tenderName,
           choreId: chore.id,
           notes: notes.trim() || null,
         }),
       });
 
-      if (newCareTakerName.trim() && !selectedCareTaker) {
-        // Add the new caretaker to the list
-        await fetch(`/api/${syncId}/caretakers`, {
+      if (newTenderName.trim() && !selectedTender) {
+        // Add the new tender to the list
+        await fetch(`/api/${syncId}/tenders`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: newCareTakerName.trim() }),
+          body: JSON.stringify({ name: newTenderName.trim() }),
         });
       }
 
@@ -501,9 +518,9 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
     }
   }
 
-  function selectCareTaker(name: string) {
-    setSelectedCareTaker(name);
-    setNewCareTakerName(""); // Clear the input field when selecting a caretaker
+  function selectTender(name: string) {
+    setSelectedTender(name);
+    setNewTenderName(""); // Clear the input field when selecting a tender
   }
 
   return (
@@ -512,42 +529,42 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
         <h2 className="text-2xl mb-4 text-amber-800 font-bold">Who's logging {chore.name}?</h2>
 
 
-        {/* Unified caretakers list */}
+        {/* Unified tenders list */}
         <div className="space-y-2 mb-4 max-h-60 overflow-y-auto">
-          {sortedCareTakers.map((careTaker: any) => (
+          {sortedTenders.map((tender: any) => (
             <button
-              key={careTaker.id}
+              key={tender.id}
               className={`w-full py-2 px-3 rounded text-left ${
-                selectedCareTaker === careTaker.name
+                selectedTender === tender.name
                   ? "bg-amber-500 text-white"
                   : "bg-amber-100 hover:bg-amber-200 text-amber-800"
-              } ${recentCareTakers.includes(careTaker.name) ? "border-l-4 border-amber-400" : ""}`}
-              onClick={() => selectCareTaker(careTaker.name)}
+              } ${recentTenders.includes(tender.name) ? "border-l-4 border-amber-400" : ""}`}
+              onClick={() => selectTender(tender.name)}
             >
-              {careTaker.name}
-              {recentCareTakers.includes(careTaker.name)
+              {tender.name}
+              {recentTenders.includes(tender.name)
                 && <span className="text-xs ml-2 opacity-70"></span>}
             </button>
           ))}
 
-          {/* New caretaker input styled like an option */}
+          {/* New tender input styled like an option */}
           <div
             className={`w-full py-2 px-3 rounded ${
-              !selectedCareTaker && newCareTakerName
+              !selectedTender && newTenderName
                 ? "bg-amber-500 text-white"
                 : "bg-yellow-50 border border-dashed border-amber-300"
             }`}
           >
             <input
               type="text"
-              value={newCareTakerName}
+              value={newTenderName}
               onChange={(e) => {
-                setNewCareTakerName(e.target.value);
-                setSelectedCareTaker(null); // Clear selection when typing
+                setNewTenderName(e.target.value);
+                setSelectedTender(null); // Clear selection when typing
               }}
               placeholder="+ Add new tender"
               className={`w-full bg-transparent focus:outline-none ${
-                !selectedCareTaker && newCareTakerName
+                !selectedTender && newTenderName
                   ? "text-white placeholder-amber-100"
                   : "text-amber-800 placeholder-amber-400"
               }`}
@@ -573,7 +590,7 @@ function CareTakerSelectionModal({ chore, onClose, onTended }: { chore: any; onC
         <button
           onClick={handleTending}
           className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded mb-2 disabled:opacity-50 font-semibold"
-          disabled={isAdding || (!selectedCareTaker && !newCareTakerName.trim())}
+          disabled={isAdding || (!selectedTender && !newTenderName.trim())}
         >
           Log Tending {chore.icon}
         </button>
@@ -602,13 +619,13 @@ function HistoryView() {
 
 function ShitHistoryComponent() {
   const syncId = useSyncId();
-  const [careTakers, setCareTakers] = useState([]);
-  const [chores, setChores] = useState([]);
-  const [history, setHistory] = useState([]);
+  const [tenders, setTenders] = useState<Tender[]>([]);
+  const [chores, setChores] = useState<Chore[]>([]);
+  const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [showExactTimes, setShowExactTimes] = useState({});
-  const [clickedTimestamp, setClickedTimestamp] = useState(null);
+  const [showExactTimes, setShowExactTimes] = useState<Record<string, boolean>>({});
+  const [clickedTimestamp, setClickedTimestamp] = useState<string | null>(null);
 
   // Helper function to format relative time
   const formatRelativeTime = (timestamp: number) => {
@@ -641,8 +658,8 @@ function ShitHistoryComponent() {
   };
 
   // Get chore by ID
-  const getChoreById = (choreId: string) => {
-    return chores.find((chore: any) => chore.id === choreId);
+  const getChoreById = (choreId: string): Chore | undefined => {
+    return chores.find((chore) => chore.id === choreId);
   };
 
   async function fetchDataInternal() {
@@ -650,25 +667,25 @@ function ShitHistoryComponent() {
     setIsLoading(true);
     setIsProcessing(true);
     try {
-      const [careTakersResponse, choresResponse, historyResponse] = await Promise.all([
-        fetch(`/api/${syncId}/caretakers`),
+      const [tendersResponse, choresResponse, historyResponse] = await Promise.all([
+        fetch(`/api/${syncId}/tenders`),
         fetch(`/api/${syncId}/chores`),
         fetch(`/api/${syncId}/history`),
       ]);
-      if (!careTakersResponse.ok) throw new Error(`CareTakers fetch error! status: ${careTakersResponse.status}`);
+      if (!tendersResponse.ok) throw new Error(`Tenders fetch error! status: ${tendersResponse.status}`);
       if (!choresResponse.ok) throw new Error(`Chores fetch error! status: ${choresResponse.status}`);
       if (!historyResponse.ok) throw new Error(`History fetch error! status: ${historyResponse.status}`);
 
-      const careTakersData = await careTakersResponse.json();
+      const tendersData = await tendersResponse.json();
       const choresData = await choresResponse.json();
       const historyData = await historyResponse.json();
 
-      setCareTakers(Array.isArray(careTakersData) ? careTakersData : []);
+      setTenders(Array.isArray(tendersData) ? tendersData : []);
       setChores(Array.isArray(choresData) ? choresData : []);
       setHistory(Array.isArray(historyData) ? historyData : []);
     } catch (error) {
       console.error("Error fetching data for history:", error);
-      setCareTakers([]);
+      setTenders([]);
       setChores([]);
       setHistory([]);
     }
@@ -806,8 +823,8 @@ function SyncSettingsView({ updateAvailable, onUpdate, currentClientVersion }: {
       {/* Chores Management Section */}
       <ManageChoresComponent />
 
-      {/* CareTakers Management Section */}
-      <ManageCareTakersComponent />
+      {/* Tenders Management Section */}
+      <ManageTendersComponent />
 
       {/* Sync Settings */}
       <SyncSettingsComponent currentSyncId={syncId} />
@@ -907,7 +924,7 @@ function UpdatesComponent({ updateAvailable, onUpdate, currentClientVersion }: {
 
 function ManageChoresComponent() {
   const syncId = useSyncId();
-  const [chores, setChores] = useState([]);
+  const [chores, setChores] = useState<Chore[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newChoreName, setNewChoreName] = useState("");
   const [newChoreIcon, setNewChoreIcon] = useState("");
@@ -1097,86 +1114,86 @@ function ManageChoresComponent() {
   );
 }
 
-function ManageCareTakersComponent() {
+function ManageTendersComponent() {
   const syncId = useSyncId();
-  const [careTakers, setCareTakers] = useState([]);
+  const [tenders, setTenders] = useState<Tender[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [newCareTakerName, setNewCareTakerName] = useState("");
+  const [newTenderName, setNewTenderName] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
 
-  async function fetchCareTakersInternal() {
+  async function fetchTendersInternal() {
     if (!syncId) return;
     setIsLoading(true);
     setIsProcessing(true);
     try {
-      const careTakersResponse = await fetch(`/api/${syncId}/caretakers`);
-      if (!careTakersResponse.ok) throw new Error(`CareTakers fetch error! status: ${careTakersResponse.status}`);
+      const tendersResponse = await fetch(`/api/${syncId}/tenders`);
+      if (!tendersResponse.ok) throw new Error(`Tenders fetch error! status: ${tendersResponse.status}`);
 
-      const careTakersData = await careTakersResponse.json();
-      setCareTakers(Array.isArray(careTakersData) ? careTakersData : []);
+      const tendersData = await tendersResponse.json();
+      setTenders(Array.isArray(tendersData) ? tendersData : []);
     } catch (error) {
-      console.error("Error fetching caretakers:", error);
-      setCareTakers([]);
+      console.error("Error fetching tenders:", error);
+      setTenders([]);
     }
     setIsLoading(false);
     setIsProcessing(false);
   }
 
   useEffect(() => {
-    fetchCareTakersInternal();
+    fetchTendersInternal();
   }, [syncId]);
 
-  async function handleAddCareTaker() {
-    if (!syncId || !newCareTakerName.trim()) return;
+  async function handleAddTender() {
+    if (!syncId || !newTenderName.trim()) return;
     setIsProcessing(true);
     try {
-      const response = await fetch(`/api/${syncId}/caretakers`, {
+      const response = await fetch(`/api/${syncId}/tenders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newCareTakerName.trim() }),
+        body: JSON.stringify({ name: newTenderName.trim() }),
       });
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
-      setNewCareTakerName("");
-      fetchCareTakersInternal(); // Refresh caretakers
+      setNewTenderName("");
+      fetchTendersInternal(); // Refresh tenders
     } catch (error) {
-      console.error("Error adding caretaker:", error);
+      console.error("Error adding tender:", error);
     } finally {
       setIsProcessing(false);
     }
   }
 
-  async function handleRenameCareTaker(careTakerId: string, currentName: string) {
-    if (!syncId || !careTakerId) return;
+  async function handleRenameTender(tenderId: string, currentName: string) {
+    if (!syncId || !tenderId) return;
     const newName = prompt("Enter new name for " + currentName + ":", currentName);
     if (newName && newName.trim() && newName.trim() !== currentName) {
       setIsProcessing(true);
       try {
-        await fetch(`/api/${syncId}/caretakers/${careTakerId}`, {
+        await fetch(`/api/${syncId}/tenders/${tenderId}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: newName.trim() }),
         });
-        fetchCareTakersInternal(); // Refresh
+        fetchTendersInternal(); // Refresh
       } catch (error) {
-        console.error("Error renaming caretaker:", error);
+        console.error("Error renaming tender:", error);
       } finally {
         setIsProcessing(false);
       }
     }
   }
 
-  async function handleDeleteCareTaker(careTakerId: string, careTakerName: string) {
-    if (!syncId || !careTakerId) return;
-    if (!confirm(`Are you sure you want to delete caretaker "${careTakerName}"? This cannot be undone.`)) return;
+  async function handleDeleteTender(tenderId: string, tenderName: string) {
+    if (!syncId || !tenderId) return;
+    if (!confirm(`Are you sure you want to delete tender "${tenderName}"? This cannot be undone.`)) return;
     setIsProcessing(true);
     try {
-      await fetch(`/api/${syncId}/caretakers/${careTakerId}`, { method: "DELETE" });
-      fetchCareTakersInternal(); // Refresh
+      await fetch(`/api/${syncId}/tenders/${tenderId}`, { method: "DELETE" });
+      fetchTendersInternal(); // Refresh
     } catch (error) {
-      console.error("Error deleting caretaker:", error);
+      console.error("Error deleting tender:", error);
     } finally {
       setIsProcessing(false);
     }
@@ -1185,7 +1202,7 @@ function ManageCareTakersComponent() {
   if (isLoading) {
     return (
       <div className="text-2xl mt-6 text-amber-700">
-        Loading caretakers...
+        Loading tenders...
         <span>.</span>
         <span>.</span>
         <span>.</span>
@@ -1196,27 +1213,27 @@ function ManageCareTakersComponent() {
   return (
     <div className={`mt-6 ${isProcessing ? "opacity-50 pointer-events-none" : ""}`}>
       <section className="p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg shadow-lg border-2 border-amber-200">
-        <h3 className="text-xl mb-3 font-semibold text-amber-700">👥 Manage Caretakers</h3>
-        {careTakers.length === 0 && !isLoading
-          ? <p className="text-amber-600">No caretakers added yet.</p>
+        <h3 className="text-xl mb-3 font-semibold text-amber-700">👥 Manage Tenders</h3>
+        {tenders.length === 0 && !isLoading
+          ? <p className="text-amber-600">No tenders added yet.</p>
           : null}
         <ul className="space-y-2">
-          {careTakers.map((careTaker: any) => (
+          {tenders.map((tender: any) => (
             <li
-              key={careTaker.id}
+              key={tender.id}
               className="flex items-center justify-between p-2 bg-amber-50 rounded border border-amber-200"
             >
-              <span className="text-amber-800">{careTaker.name}</span>
+              <span className="text-amber-800">{tender.name}</span>
               <div className="space-x-2">
                 <button
-                  onClick={() => handleRenameCareTaker(careTaker.id, careTaker.name)}
+                  onClick={() => handleRenameTender(tender.id, tender.name)}
                   className="text-sm text-blue-500 hover:text-blue-700"
                   disabled={isProcessing}
                 >
                   ✏️ Rename
                 </button>
                 <button
-                  onClick={() => handleDeleteCareTaker(careTaker.id, careTaker.name)}
+                  onClick={() => handleDeleteTender(tender.id, tender.name)}
                   className="text-sm text-red-500 hover:text-red-700"
                   disabled={isProcessing}
                 >
@@ -1229,18 +1246,18 @@ function ManageCareTakersComponent() {
         <div className="flex mt-4">
           <input
             type="text"
-            value={newCareTakerName}
-            onChange={(e) => setNewCareTakerName(e.target.value)}
-            placeholder="New caretaker name"
+            value={newTenderName}
+            onChange={(e) => setNewTenderName(e.target.value)}
+            placeholder="New tender name"
             className="flex-grow border border-amber-300 rounded-l px-2 py-1 focus:ring-amber-500 focus:border-amber-500 bg-yellow-50"
             disabled={isProcessing}
           />
           <button
-            onClick={handleAddCareTaker}
+            onClick={handleAddTender}
             className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-1 rounded-r disabled:opacity-50 font-semibold"
-            disabled={isProcessing || !newCareTakerName.trim()}
+            disabled={isProcessing || !newTenderName.trim()}
           >
-            {isProcessing ? "Adding..." : "Add Caretaker"}
+            {isProcessing ? "Adding..." : "Add Tender"}
           </button>
         </div>
       </section>

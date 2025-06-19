@@ -29,7 +29,7 @@ A simple, self-hosted chore tracking app for your household, built with Bun, Rea
 ## Features
 
 - ✅ Track household chores with custom icons
-- ✅ Multiple caretakers support
+- ✅ Multiple tenders support
 - ✅ Tending history with notes
 - ✅ Sync across devices with sync codes
 - ✅ PWA support (works offline)
@@ -61,8 +61,8 @@ src/
 - `POST /api/:syncId/chores` - Add new chore
 - `PUT /api/:syncId/chores/:id` - Update chore
 - `DELETE /api/:syncId/chores/:id` - Delete chore
-- `GET /api/:syncId/caretakers` - Get all caretakers
-- `POST /api/:syncId/caretakers` - Add caretaker
+- `GET /api/:syncId/tenders` - Get all tenders
+- `POST /api/:syncId/tenders` - Add tender
 - `GET /api/:syncId/history` - Get tending history
 - `POST /api/:syncId/tend` - Log a tending action
 
