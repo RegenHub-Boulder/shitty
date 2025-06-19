@@ -2,7 +2,8 @@ import { Database } from "bun:sqlite";
 import { join } from "path";
 
 const isDev = process.env.NODE_ENV !== "production";
-const db = new Database("shitty.db");
+const dbPath = process.env.DB_PATH || (isDev ? "shitty.db" : "/app/data/shitty.db");
+const db = new Database(dbPath);
 const PWA_APP_VERSION = "v1.0.7";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
