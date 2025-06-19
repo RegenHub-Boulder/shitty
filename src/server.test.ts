@@ -161,7 +161,7 @@ describe("Database Helper Functions", () => {
 describe("API Route Logic Tests", () => {
   test("manifest.json structure", () => {
     const manifest = {
-      name: "Shitty - Chore Tracker",
+      name: "Shitty",
       short_name: "Shitty",
       display: "standalone",
       orientation: "portrait",
@@ -173,7 +173,7 @@ describe("API Route Logic Tests", () => {
       icons: expect.any(Array),
     };
     
-    expect(manifest.name).toBe("Shitty - Chore Tracker");
+    expect(manifest.name).toBe("Shitty");
     expect(manifest.short_name).toBe("Shitty");
     expect(manifest.theme_color).toBe("#D97706");
   });

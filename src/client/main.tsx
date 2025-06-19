@@ -95,31 +95,36 @@ function App() {
       return;
     }
 
-    const swRegistration = navigator.serviceWorker.ready;
+    // Register the service worker
+    navigator.serviceWorker.register('/sw.js')
+      .then(registration => {
+        console.log('Service Worker registered successfully:', registration);
+        
+        // Initial check for a waiting worker
+        if (registration.waiting) {
+          setUpdateAvailable(true);
+        }
 
-    swRegistration.then(registration => {
-      if (!registration) return;
+        // Listen for new workers installing
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (!newWorker) return;
 
-      // 1. Initial check for a waiting worker
-      if (registration.waiting) {
-        setUpdateAvailable(true);
-      }
-
-      // 2. Listen for new workers installing
-      registration.addEventListener("updatefound", () => {
-        const newWorker = registration.installing;
-        if (!newWorker) return;
-
-        newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed") {
-            // A new worker has installed. Check if it's now waiting.
-            if (registration.waiting) {
-              setUpdateAvailable(true);
+          newWorker.addEventListener("statechange", () => {
+            if (newWorker.state === "installed") {
+              // A new worker has installed. Check if it's now waiting.
+              if (registration.waiting) {
+                setUpdateAvailable(true);
+              }
             }
-          }
+          });
         });
+      })
+      .catch(error => {
+        console.error('Service Worker registration failed:', error);
       });
-    });
+
+
 
     // 3. Listen for controller change (new SW has activated)
     const controllerChangeHandler = () => {
@@ -163,15 +168,15 @@ function App() {
 
   return (
     <SyncIdContext.Provider value={syncId}>
-      <div className="flex flex-col min-h-screen bg-gradient-to-br from-amber-100 via-yellow-50 to-orange-100">
-        <header className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 shadow-md">
+      <div className="flex flex-col h-screen bg-gradient-to-br from-amber-100 via-yellow-50 to-orange-100">
+        <header className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 shadow-md flex-shrink-0">
           <Link to="/" className="text-3xl font-bold text-amber-800 hover:text-amber-900">💩 Shitty</Link>
           <nav>
             <Link to={`/history`} className="mr-4 text-xl text-amber-700 hover:text-amber-900">History</Link>
             <Link to={`/settings`} className="text-xl text-amber-700 hover:text-amber-900">Settings</Link>
           </nav>
         </header>
-        <main className="flex-grow flex items-center justify-center">
+        <main className="flex-grow overflow-hidden">
           <Routes>
             <Route path={`/`} element={<ShitView />} />
             <Route path={`/history`} element={<HistoryView />} />
@@ -188,7 +193,7 @@ function App() {
             <Route path="*" element={<ShitView />} />
           </Routes>
         </main>
-        <footer className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 text-center text-amber-700">
+        <footer className="bg-gradient-to-r from-amber-200 to-yellow-200 p-4 text-center text-amber-700 flex-shrink-0">
           <a href="https://www.val.town/x/jonbo/planty" target="_top" className="text-xl hover:text-amber-900">
             made with ❤️ at RegenHub
           </a>
@@ -234,31 +239,30 @@ function ShitView() {
   if (!syncId) return <div>Loading sync information...</div>;
   if (isLoading) return <div className="h-full flex items-center justify-center text-2xl text-amber-700">Loading chores...</div>;
 
-  // Calculate layout based on number of chores
-  const choreCount = chores.length;
-  let containerClass = "h-full flex items-center justify-center";
-  
-  if (choreCount === 0) {
+  if (chores.length === 0) {
     return (
-      <div className={containerClass}>
+      <div className="h-full flex items-center justify-center">
         <div className="text-center text-amber-700">
           <p className="text-2xl mb-4">No chores configured</p>
           <p>Add chores in Settings</p>
         </div>
       </div>
     );
-  } else {
-    // Single row layout for 1-6 chores
-    return (
-      <div className={containerClass}>
-        <div className="flex gap-4 items-start justify-center flex-wrap">
-          {chores.slice(0, 6).map((chore, index) => (
-            <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} animationIndex={index} />
-          ))}
-        </div>
-      </div>
-    );
   }
+
+  // Use full screen width, distribute chores evenly
+  return (
+    <div className="h-full w-full p-8 flex items-center justify-center">
+      <div className="w-full max-w-none grid gap-8 place-items-center" style={{
+        gridTemplateColumns: `repeat(${Math.min(chores.length, 6)}, 1fr)`,
+        gridAutoRows: 'min-content'
+      }}>
+        {chores.slice(0, 6).map((chore, index) => (
+          <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} animationIndex={index} />
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTended: () => void; animationIndex?: number }) {

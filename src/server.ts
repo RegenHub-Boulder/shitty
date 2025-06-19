@@ -4,7 +4,7 @@ import { join } from "path";
 const isDev = process.env.NODE_ENV !== "production";
 const dbPath = process.env.DB_PATH || (isDev ? "shitty.db" : "/app/data/shitty.db");
 const db = new Database(dbPath);
-const PWA_APP_VERSION = "v1.0.7";
+const PWA_APP_VERSION = "v1.0.9-simple";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 function createErrorResponse(message: string, status: number = 400) {
@@ -94,18 +94,30 @@ const server = Bun.serve({
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/").filter(p => p.trim() !== "");
 
+    // Serve service worker
+    if (url.pathname === "/sw.js") {
+      const swFile = Bun.file(join(process.cwd(), "src/sw.js"));
+      if (await swFile.exists()) {
+        return new Response(swFile, {
+          headers: {
+            "Content-Type": "application/javascript",
+            "Service-Worker-Allowed": "/",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+          },
+        });
+      }
+    }
+
     // Serve manifest.json
     if (url.pathname === "/manifest.json") {
       const manifest = {
-        name: "Shitty - Chore Tracker",
+        name: "Shitty",
         short_name: "Shitty",
         display: "standalone",
-        orientation: "portrait",
         background_color: "#FEF3C7",
         theme_color: "#D97706",
-        description: "A simple chore tracker for your household.",
         start_url: "/",
-        categories: ["productivity", "utilities"],
+        scope: "/",
         icons: [
           {
             src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
@@ -121,7 +133,6 @@ const server = Bun.serve({
             `),
             sizes: "192x192",
             type: "image/svg+xml",
-            purpose: "any maskable",
           },
           {
             src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
@@ -137,7 +148,6 @@ const server = Bun.serve({
             `),
             sizes: "512x512",
             type: "image/svg+xml",
-            purpose: "any maskable",
           },
         ],
       };
@@ -375,24 +385,30 @@ const server = Bun.serve({
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Shitty - Chore Tracker</title>
-  <meta name="description" content="A simple chore tracker for your household.">
+  <title>Shitty</title>
   
   <!-- PWA Configuration -->
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#D97706">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Shitty">
   
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     @layer base {
+      * {
+        box-sizing: border-box;
+      }
+      
       html, body, #root {
-        height: 100%;
+        height: 100vh;
         margin: 0;
         padding: 0;
+        width: 100%;
+      }
+      
+      body {
         overflow-x: hidden;
       }
     }
