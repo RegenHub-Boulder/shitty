@@ -475,4 +475,5 @@ const server = Bun.serve({
   }
 });
 
-console.log(`🚀 Shitty server running on http://localhost:${server.port} (${isDev ? 'development' : 'production'})`);
+const displayHost = process.env.HOST || "0.0.0.0";
+console.log(`🚀 Shitty server running on http://${displayHost}:${server.port} (${isDev ? 'development' : 'production'})`);
