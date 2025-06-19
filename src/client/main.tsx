@@ -1092,11 +1092,6 @@ function ManageChoresComponent() {
             {isProcessing ? "Adding..." : "Add Chore"}
           </button>
         </div>
-        {chores.length >= 3 && (
-          <p className="text-sm text-amber-600 mt-2">
-            Note: Only the first 3 chores will be displayed on the home page.
-          </p>
-        )}
       </section>
     </div>
   );

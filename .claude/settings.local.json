@@ -10,7 +10,8 @@
       "Bash(bun test:*)",
       "Bash(bun add:*)",
       "mcp__ide__getDiagnostics",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(rg:*)"
     ],
     "deny": []
   }
