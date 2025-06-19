@@ -6,8 +6,6 @@ import { join } from "path";
 const TEST_DB_PATH = "test_shitty.db";
 let testDb: Database;
 
-// Mock the database in the server module
-const originalDb = new Database("shitty.db");
 
 beforeEach(() => {
   testDb = new Database(TEST_DB_PATH);

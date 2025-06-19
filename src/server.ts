@@ -3,9 +3,15 @@ import { join } from "path";
 
 const isDev = process.env.NODE_ENV !== "production";
 const db = new Database("shitty.db");
-
-// PWA Version constant
 const PWA_APP_VERSION = "v1.0.7";
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+function createErrorResponse(message: string, status: number = 400) {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: JSON_HEADERS,
+  });
+}
 
 // Initialize database
 await db.exec(`
@@ -82,7 +88,7 @@ async function updateInstanceData(
 
 const server = Bun.serve({
   port: isDev ? 3000 : (process.env.PORT || 3000),
-  async fetch(req) {
+  async fetch(req: Request) {
     const url = new URL(req.url);
     const pathParts = url.pathname.split("/").filter(p => p.trim() !== "");
 
@@ -189,15 +195,12 @@ const server = Bun.serve({
         
         if (req.method === "GET" && !itemId) {
           return new Response(JSON.stringify(instanceData.caretakers), {
-            headers: { "Content-Type": "application/json" },
+            headers: JSON_HEADERS,
           });
         } else if (req.method === "POST" && !itemId) {
           const { name } = await req.json();
           if (!name || typeof name !== "string") {
-            return new Response(JSON.stringify({ error: "Invalid name for caretaker" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+            return createErrorResponse("Invalid name for caretaker");
           }
           const newCaretaker = { 
             id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
@@ -207,40 +210,30 @@ const server = Bun.serve({
           await updateInstanceData(syncId, instanceData);
           return new Response(JSON.stringify(newCaretaker), {
             status: 201,
-            headers: { "Content-Type": "application/json" },
+            headers: JSON_HEADERS,
           });
         } else if (req.method === "PUT" && itemId) {
           const { name } = await req.json();
           if (!name || typeof name !== "string") {
-            return new Response(JSON.stringify({ error: "Invalid new name for caretaker" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+            return createErrorResponse("Invalid new name for caretaker");
           }
-          const caretakerIndex = instanceData.caretakers.findIndex(c => c.id === itemId);
+          const caretakerIndex = instanceData.caretakers.findIndex((c: any) => c.id === itemId);
           if (caretakerIndex > -1) {
             instanceData.caretakers[caretakerIndex].name = name.trim();
             await updateInstanceData(syncId, instanceData);
             return new Response(JSON.stringify(instanceData.caretakers[caretakerIndex]), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
+              headers: JSON_HEADERS,
             });
           }
-          return new Response(JSON.stringify({ error: "Caretaker not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("Caretaker not found", 404);
         } else if (req.method === "DELETE" && itemId) {
           const initialLength = instanceData.caretakers.length;
-          instanceData.caretakers = instanceData.caretakers.filter(c => c.id !== itemId);
+          instanceData.caretakers = instanceData.caretakers.filter((c: any) => c.id !== itemId);
           if (instanceData.caretakers.length < initialLength) {
             await updateInstanceData(syncId, instanceData);
             return new Response(null, { status: 204 });
           }
-          return new Response(JSON.stringify({ error: "Caretaker not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("Caretaker not found", 404);
         }
       }
       // Chores API
@@ -249,15 +242,12 @@ const server = Bun.serve({
         
         if (req.method === "GET" && !itemId) {
           return new Response(JSON.stringify(instanceData.chores), {
-            headers: { "Content-Type": "application/json" },
+            headers: JSON_HEADERS,
           });
         } else if (req.method === "POST" && !itemId) {
           const { name, icon } = await req.json();
           if (!name || typeof name !== "string" || !icon || typeof icon !== "string") {
-            return new Response(JSON.stringify({ error: "Invalid name or icon for chore" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+            return createErrorResponse("Invalid name or icon for chore");
           }
           const newChore = { 
             id: `chore_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
@@ -268,41 +258,31 @@ const server = Bun.serve({
           await updateInstanceData(syncId, instanceData);
           return new Response(JSON.stringify(newChore), {
             status: 201,
-            headers: { "Content-Type": "application/json" },
+            headers: JSON_HEADERS,
           });
         } else if (req.method === "PUT" && itemId) {
           const { name, icon } = await req.json();
           if ((!name || typeof name !== "string") && (!icon || typeof icon !== "string")) {
-            return new Response(JSON.stringify({ error: "Invalid name or icon for chore" }), {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            });
+            return createErrorResponse("Invalid name or icon for chore");
           }
-          const choreIndex = instanceData.chores.findIndex(c => c.id === itemId);
+          const choreIndex = instanceData.chores.findIndex((c: any) => c.id === itemId);
           if (choreIndex > -1) {
             if (name) instanceData.chores[choreIndex].name = name.trim();
             if (icon) instanceData.chores[choreIndex].icon = icon.trim();
             await updateInstanceData(syncId, instanceData);
             return new Response(JSON.stringify(instanceData.chores[choreIndex]), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
+              headers: JSON_HEADERS,
             });
           }
-          return new Response(JSON.stringify({ error: "Chore not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("Chore not found", 404);
         } else if (req.method === "DELETE" && itemId) {
           const initialLength = instanceData.chores.length;
-          instanceData.chores = instanceData.chores.filter(c => c.id !== itemId);
+          instanceData.chores = instanceData.chores.filter((c: any) => c.id !== itemId);
           if (instanceData.chores.length < initialLength) {
             await updateInstanceData(syncId, instanceData);
             return new Response(null, { status: 204 });
           }
-          return new Response(JSON.stringify({ error: "Chore not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("Chore not found", 404);
         }
       }
       // History API
@@ -312,15 +292,15 @@ const server = Bun.serve({
         if (req.method === "GET" && !itemId) {
           const sortedHistory = [...instanceData.tending_log].sort((a, b) => b.timestamp - a.timestamp);
           return new Response(JSON.stringify(sortedHistory), { 
-            headers: { "Content-Type": "application/json" } 
+            headers: JSON_HEADERS 
           });
         } else if (req.method === "DELETE" && itemId) {
           const initialLength = instanceData.tending_log.length;
-          instanceData.tending_log = instanceData.tending_log.filter(entry => entry.id !== itemId);
+          instanceData.tending_log = instanceData.tending_log.filter((entry: any) => entry.id !== itemId);
 
           if (instanceData.tending_log.length < initialLength) {
             if (instanceData.tending_log.length > 0) {
-              const lastEntry = instanceData.tending_log.reduce((latest, entry) =>
+              const lastEntry = instanceData.tending_log.reduce((latest: any, entry: any) =>
                 entry.timestamp > latest.timestamp ? entry : latest
               );
               instanceData.last_tended_timestamp = lastEntry.timestamp;
@@ -332,20 +312,14 @@ const server = Bun.serve({
             await updateInstanceData(syncId, instanceData);
             return new Response(null, { status: 204 });
           }
-          return new Response(JSON.stringify({ error: "History entry not found" }), {
-            status: 404,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("History entry not found", 404);
         }
       }
       // Tend Action API
       else if (apiResource === "tend" && req.method === "POST") {
         const { caretaker, choreId, notes } = await req.json();
         if (!caretaker || typeof caretaker !== "string" || !choreId || typeof choreId !== "string") {
-          return new Response(JSON.stringify({ error: "Invalid caretaker or chore identifier" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-          });
+          return createErrorResponse("Invalid caretaker or chore identifier");
         }
         const timestamp = Date.now();
         let instanceData = await getInstanceData(syncId);
@@ -362,7 +336,7 @@ const server = Bun.serve({
         await updateInstanceData(syncId, instanceData);
         return new Response(JSON.stringify(newLogEntry), {
           status: 201,
-          headers: { "Content-Type": "application/json" },
+          headers: JSON_HEADERS,
         });
       }
       // Last Tended API
@@ -374,21 +348,18 @@ const server = Bun.serve({
             lastCareTaker: instanceData.last_caretaker,
           }),
           {
-            headers: { "Content-Type": "application/json" },
+            headers: JSON_HEADERS,
           }
         );
       }
       // App Version API
       else if (apiResource === "app-version" && req.method === "GET") {
         return new Response(JSON.stringify({ version: PWA_APP_VERSION }), {
-          headers: { "Content-Type": "application/json" },
+          headers: JSON_HEADERS,
         });
       }
 
-      return new Response(JSON.stringify({ error: "API endpoint not found or method not allowed." }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
+      return createErrorResponse("API endpoint not found or method not allowed.", 404);
     }
 
     // Serve the main HTML page
