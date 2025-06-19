@@ -1,0 +1,482 @@
+import { Database } from "bun:sqlite";
+import { join } from "path";
+
+const isDev = process.env.NODE_ENV !== "production";
+const db = new Database("shitty.db");
+
+// PWA Version constant
+const PWA_APP_VERSION = "v1.0.7";
+
+// Initialize database
+await db.exec(`
+  CREATE TABLE IF NOT EXISTS shitty_instances (
+    sync_id TEXT PRIMARY KEY,
+    caretakers TEXT DEFAULT '[]',
+    tending_log TEXT DEFAULT '[]',
+    last_tended_timestamp INTEGER,
+    last_caretaker TEXT,
+    chores TEXT DEFAULT '[]'
+  )
+`);
+
+// Helper functions
+async function getInstanceData(syncId: string) {
+  const query = db.query(`
+    SELECT caretakers, tending_log, last_tended_timestamp, last_caretaker, chores 
+    FROM shitty_instances WHERE sync_id = ?
+  `);
+  
+  let result = query.get(syncId) as any;
+  
+  if (!result) {
+    // Create default chore
+    const defaultChore = {
+      id: `chore_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      name: "Water the plants",
+      icon: "🪴"
+    };
+    
+    const insertQuery = db.query(`
+      INSERT INTO shitty_instances (sync_id, caretakers, tending_log, last_tended_timestamp, last_caretaker, chores) 
+      VALUES (?, '[]', '[]', NULL, NULL, ?)
+    `);
+    
+    insertQuery.run(syncId, JSON.stringify([defaultChore]));
+    result = query.get(syncId);
+  }
+  
+  return {
+    caretakers: JSON.parse(result.caretakers || "[]"),
+    tending_log: JSON.parse(result.tending_log || "[]"),
+    last_tended_timestamp: result.last_tended_timestamp,
+    last_caretaker: result.last_caretaker,
+    chores: JSON.parse(result.chores || "[]"),
+  };
+}
+
+async function updateInstanceData(
+  syncId: string,
+  data: {
+    caretakers: any[];
+    tending_log: any[];
+    last_tended_timestamp: number | null;
+    last_caretaker: string | null;
+    chores: any[];
+  }
+) {
+  const query = db.query(`
+    UPDATE shitty_instances 
+    SET caretakers = ?, tending_log = ?, last_tended_timestamp = ?, last_caretaker = ?, chores = ? 
+    WHERE sync_id = ?
+  `);
+  
+  query.run(
+    JSON.stringify(data.caretakers),
+    JSON.stringify(data.tending_log),
+    data.last_tended_timestamp,
+    data.last_caretaker,
+    JSON.stringify(data.chores),
+    syncId
+  );
+}
+
+const server = Bun.serve({
+  port: isDev ? 3000 : (process.env.PORT || 3000),
+  async fetch(req) {
+    const url = new URL(req.url);
+    const pathParts = url.pathname.split("/").filter(p => p.trim() !== "");
+
+    // Serve manifest.json
+    if (url.pathname === "/manifest.json") {
+      const manifest = {
+        name: "Shitty - Chore Tracker",
+        short_name: "Shitty",
+        display: "standalone",
+        orientation: "portrait",
+        background_color: "#FEF3C7",
+        theme_color: "#D97706",
+        description: "A simple chore tracker for your household.",
+        start_url: "/",
+        categories: ["productivity", "utilities"],
+        icons: [
+          {
+            src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+                <rect width="192" height="192" fill="#D97706" rx="24"/>
+                <circle cx="96" cy="80" r="35" fill="#8B4513"/>
+                <circle cx="96" cy="96" r="30" fill="#A0522D"/>
+                <circle cx="96" cy="110" r="25" fill="#CD853F"/>
+                <circle cx="85" cy="75" r="3" fill="white"/>
+                <circle cx="107" cy="75" r="3" fill="white"/>
+                <path d="M85 85 Q96 95 107 85" stroke="white" stroke-width="2" fill="none"/>
+              </svg>
+            `),
+            sizes: "192x192",
+            type: "image/svg+xml",
+            purpose: "any maskable",
+          },
+          {
+            src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <rect width="512" height="512" fill="#D97706" rx="64"/>
+                <circle cx="256" cy="200" r="90" fill="#8B4513"/>
+                <circle cx="256" cy="256" r="80" fill="#A0522D"/>
+                <circle cx="256" cy="300" r="65" fill="#CD853F"/>
+                <circle cx="230" cy="190" r="8" fill="white"/>
+                <circle cx="282" cy="190" r="8" fill="white"/>
+                <path d="M230 220 Q256 240 282 220" stroke="white" stroke-width="6" fill="none"/>
+              </svg>
+            `),
+            sizes: "512x512",
+            type: "image/svg+xml",
+            purpose: "any maskable",
+          },
+        ],
+      };
+      return new Response(JSON.stringify(manifest, null, 2), {
+        headers: { "Content-Type": "application/manifest+json" },
+      });
+    }
+
+    // In dev mode, build and serve the client bundle on the fly
+    if (isDev && url.pathname === "/client.js") {
+      try {
+        const result = await Bun.build({
+          entrypoints: ["./src/client/main.tsx"],
+          target: "browser",
+          format: "esm",
+          define: {
+            "process.env.NODE_ENV": '"development"'
+          },
+          external: [], // Bundle everything for simplicity
+        });
+
+        if (result.outputs.length > 0) {
+          const jsCode = await result.outputs[0].text();
+          return new Response(jsCode, {
+            headers: {
+              "Content-Type": "application/javascript",
+              "Cache-Control": "no-cache",
+            },
+          });
+        }
+      } catch (error) {
+        console.error("Build error:", error);
+        return new Response(`console.error("Build failed: ${error}");`, {
+          headers: { "Content-Type": "application/javascript" },
+        });
+      }
+    }
+
+    // Serve built assets in production
+    if (!isDev && url.pathname.startsWith("/dist/")) {
+      const filePath = join(process.cwd(), url.pathname.slice(1));
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        return new Response(file);
+      }
+    }
+
+    // API Routes
+    if (pathParts[0] === "api" && pathParts.length >= 2) {
+      const syncId = pathParts[1];
+      const apiResource = pathParts.length > 2 ? pathParts[2] : null;
+      const itemId = pathParts.length > 3 ? pathParts[3] : null;
+
+      // Caretakers API
+      if (apiResource === "caretakers") {
+        let instanceData = await getInstanceData(syncId);
+        
+        if (req.method === "GET" && !itemId) {
+          return new Response(JSON.stringify(instanceData.caretakers), {
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "POST" && !itemId) {
+          const { name } = await req.json();
+          if (!name || typeof name !== "string") {
+            return new Response(JSON.stringify({ error: "Invalid name for caretaker" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          const newCaretaker = { 
+            id: `c_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
+            name: name.trim() 
+          };
+          instanceData.caretakers.push(newCaretaker);
+          await updateInstanceData(syncId, instanceData);
+          return new Response(JSON.stringify(newCaretaker), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "PUT" && itemId) {
+          const { name } = await req.json();
+          if (!name || typeof name !== "string") {
+            return new Response(JSON.stringify({ error: "Invalid new name for caretaker" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          const caretakerIndex = instanceData.caretakers.findIndex(c => c.id === itemId);
+          if (caretakerIndex > -1) {
+            instanceData.caretakers[caretakerIndex].name = name.trim();
+            await updateInstanceData(syncId, instanceData);
+            return new Response(JSON.stringify(instanceData.caretakers[caretakerIndex]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return new Response(JSON.stringify({ error: "Caretaker not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "DELETE" && itemId) {
+          const initialLength = instanceData.caretakers.length;
+          instanceData.caretakers = instanceData.caretakers.filter(c => c.id !== itemId);
+          if (instanceData.caretakers.length < initialLength) {
+            await updateInstanceData(syncId, instanceData);
+            return new Response(null, { status: 204 });
+          }
+          return new Response(JSON.stringify({ error: "Caretaker not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      // Chores API
+      else if (apiResource === "chores") {
+        let instanceData = await getInstanceData(syncId);
+        
+        if (req.method === "GET" && !itemId) {
+          return new Response(JSON.stringify(instanceData.chores), {
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "POST" && !itemId) {
+          const { name, icon } = await req.json();
+          if (!name || typeof name !== "string" || !icon || typeof icon !== "string") {
+            return new Response(JSON.stringify({ error: "Invalid name or icon for chore" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          const newChore = { 
+            id: `chore_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`, 
+            name: name.trim(),
+            icon: icon.trim()
+          };
+          instanceData.chores.push(newChore);
+          await updateInstanceData(syncId, instanceData);
+          return new Response(JSON.stringify(newChore), {
+            status: 201,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "PUT" && itemId) {
+          const { name, icon } = await req.json();
+          if ((!name || typeof name !== "string") && (!icon || typeof icon !== "string")) {
+            return new Response(JSON.stringify({ error: "Invalid name or icon for chore" }), {
+              status: 400,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          const choreIndex = instanceData.chores.findIndex(c => c.id === itemId);
+          if (choreIndex > -1) {
+            if (name) instanceData.chores[choreIndex].name = name.trim();
+            if (icon) instanceData.chores[choreIndex].icon = icon.trim();
+            await updateInstanceData(syncId, instanceData);
+            return new Response(JSON.stringify(instanceData.chores[choreIndex]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            });
+          }
+          return new Response(JSON.stringify({ error: "Chore not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        } else if (req.method === "DELETE" && itemId) {
+          const initialLength = instanceData.chores.length;
+          instanceData.chores = instanceData.chores.filter(c => c.id !== itemId);
+          if (instanceData.chores.length < initialLength) {
+            await updateInstanceData(syncId, instanceData);
+            return new Response(null, { status: 204 });
+          }
+          return new Response(JSON.stringify({ error: "Chore not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      // History API
+      else if (apiResource === "history") {
+        let instanceData = await getInstanceData(syncId);
+        
+        if (req.method === "GET" && !itemId) {
+          const sortedHistory = [...instanceData.tending_log].sort((a, b) => b.timestamp - a.timestamp);
+          return new Response(JSON.stringify(sortedHistory), { 
+            headers: { "Content-Type": "application/json" } 
+          });
+        } else if (req.method === "DELETE" && itemId) {
+          const initialLength = instanceData.tending_log.length;
+          instanceData.tending_log = instanceData.tending_log.filter(entry => entry.id !== itemId);
+
+          if (instanceData.tending_log.length < initialLength) {
+            if (instanceData.tending_log.length > 0) {
+              const lastEntry = instanceData.tending_log.reduce((latest, entry) =>
+                entry.timestamp > latest.timestamp ? entry : latest
+              );
+              instanceData.last_tended_timestamp = lastEntry.timestamp;
+              instanceData.last_caretaker = lastEntry.person;
+            } else {
+              instanceData.last_tended_timestamp = null;
+              instanceData.last_caretaker = null;
+            }
+            await updateInstanceData(syncId, instanceData);
+            return new Response(null, { status: 204 });
+          }
+          return new Response(JSON.stringify({ error: "History entry not found" }), {
+            status: 404,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+      }
+      // Tend Action API
+      else if (apiResource === "tend" && req.method === "POST") {
+        const { caretaker, choreId, notes } = await req.json();
+        if (!caretaker || typeof caretaker !== "string" || !choreId || typeof choreId !== "string") {
+          return new Response(JSON.stringify({ error: "Invalid caretaker or chore identifier" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        const timestamp = Date.now();
+        let instanceData = await getInstanceData(syncId);
+        const newLogEntry = {
+          id: `h_${timestamp}_${Math.random().toString(36).substring(2, 7)}`,
+          timestamp,
+          person: caretaker.trim(),
+          chore_id: choreId.trim(),
+          notes: notes && typeof notes === "string" ? notes.trim() : null,
+        };
+        instanceData.tending_log.push(newLogEntry);
+        instanceData.last_tended_timestamp = timestamp;
+        instanceData.last_caretaker = caretaker.trim();
+        await updateInstanceData(syncId, instanceData);
+        return new Response(JSON.stringify(newLogEntry), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // Last Tended API
+      else if (apiResource === "last-tended" && req.method === "GET") {
+        const instanceData = await getInstanceData(syncId);
+        return new Response(
+          JSON.stringify({
+            lastTended: instanceData.last_tended_timestamp,
+            lastCareTaker: instanceData.last_caretaker,
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+      // App Version API
+      else if (apiResource === "app-version" && req.method === "GET") {
+        return new Response(JSON.stringify({ version: PWA_APP_VERSION }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ error: "API endpoint not found or method not allowed." }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    // Serve the main HTML page
+    const clientScript = isDev 
+      ? `<script type="module" src="/client.js"></script>`
+      : `<script type="module" src="/dist/main.js"></script>`;
+
+    return new Response(
+      `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Shitty - Chore Tracker</title>
+  <meta name="description" content="A simple chore tracker for your household.">
+  
+  <!-- PWA Configuration -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#D97706">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Shitty">
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @layer base {
+      html, body, #root {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+      }
+    }
+
+    @layer utilities {
+      .shit-float {
+        animation: floatingShit 3s ease-in-out infinite;
+      }
+      
+      @keyframes floatingShit {
+        0% { transform: translateY(0px); }
+        50% { transform: translateY(-15px); }
+        100% { transform: translateY(0px); }
+      }
+      
+      .timeline-entry {
+        position: relative;
+        z-index: 10;
+      }
+      
+      .timeline-entry:hover {
+        transform: translateY(-2px) translateX(2px);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      }
+      
+      .timeline-dot {
+        z-index: 20;
+      }
+      
+      .timeline-entry:hover .timeline-dot {
+        transform: scale(1.2);
+        background-color: #d9f99d;
+        border-color: #65a30d;
+      }
+      
+      .timeline-entry:hover .timeline-dot-inner {
+        background-color: #65a30d;
+        transform: scale(1.2);
+      }
+    }
+  </style>
+  <script>
+    window.PWA_CURRENT_APP_VERSION = "${PWA_APP_VERSION}";
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  ${clientScript}
+</body>
+</html>`,
+      {
+        headers: {
+          "content-type": "text/html",
+        },
+      }
+    );
+  }
+});
+
+console.log(`🚀 Shitty server running on http://localhost:${server.port} (${isDev ? 'development' : 'production'})`);

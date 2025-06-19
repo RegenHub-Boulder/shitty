@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.val.town)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(bun install:*)",
+      "Bash(bun run:*)"
+    ],
+    "deny": []
+  }
+}
