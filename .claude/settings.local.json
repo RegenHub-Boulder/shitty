@@ -6,7 +6,8 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(bun install:*)",
-      "Bash(bun run:*)"
+      "Bash(bun run:*)",
+      "Bash(bun test:*)"
     ],
     "deny": []
   }

@@ -6,7 +6,8 @@
     "dev": "bun run --watch src/server.ts",
     "build": "bun build src/client/main.tsx --outdir dist --target browser --splitting --minify",
     "start": "NODE_ENV=production bun run src/server.ts",
-    "db:migrate": "bun run src/db/migrate.ts"
+    "db:migrate": "bun run src/db/migrate.ts",
+    "test": "bun test"
   },
   "dependencies": {
     "react": "^18.2.0",
