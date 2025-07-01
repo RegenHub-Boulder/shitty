@@ -16,7 +16,7 @@ function createErrorResponse(message: string, status: number = 400) {
 }
 
 // Initialize database with proper error handling
-function initializeDatabase() {
+async function initializeDatabase() {
   // Ensure the directory exists
   const dbDir = dirname(dbPath);
   if (!existsSync(dbDir)) {
@@ -24,7 +24,7 @@ function initializeDatabase() {
     console.log(`Created database directory: ${dbDir}`);
   }
 
-  let db: Database;
+  let db: Database | undefined;
   
   try {
     // Try to open existing database
@@ -35,6 +35,15 @@ function initializeDatabase() {
     console.log(`Connected to existing database: ${dbPath}`);
     
   } catch (error) {
+    // Close any potentially open database handle before proceeding
+    if (db) {
+      try {
+        db.close();
+      } catch (closeError) {
+        // Ignore close errors
+      }
+    }
+    
     if (existsSync(dbPath)) {
       // Database file exists but is corrupted
       console.error(`🚨 CRITICAL: Database file exists but is corrupted!`);
@@ -50,6 +59,8 @@ function initializeDatabase() {
       if (process.env.RECREATE_CORRUPTED_DB === "true") {
         console.warn(`\n🗑️  RECREATE_CORRUPTED_DB=true - Removing corrupted database...`);
         try {
+          // Wait a moment for any file handles to be released
+          await new Promise(resolve => setTimeout(resolve, 100));
           unlinkSync(dbPath);
           console.log(`Removed corrupted database file: ${dbPath}`);
           db = new Database(dbPath);
@@ -94,7 +105,7 @@ function initializeDatabase() {
   return db;
 }
 
-const db = initializeDatabase();
+const db = await initializeDatabase();
 
 // Helper functions
 async function getInstanceData(syncId: string) {
