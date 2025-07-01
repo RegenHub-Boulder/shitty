@@ -1,9 +1,10 @@
 import { Database } from "bun:sqlite";
 import { join } from "path";
+import { existsSync, mkdirSync, unlinkSync } from "fs";
+import { dirname } from "path";
 
 const isDev = process.env.NODE_ENV !== "production";
 const dbPath = process.env.DB_PATH || (isDev ? "shitty.db" : "/app/data/shitty.db");
-const db = new Database(dbPath);
 const PWA_APP_VERSION = "v1.0.9-simple";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
@@ -14,17 +15,86 @@ function createErrorResponse(message: string, status: number = 400) {
   });
 }
 
-// Initialize database
-await db.exec(`
-  CREATE TABLE IF NOT EXISTS shitty_instances (
-    sync_id TEXT PRIMARY KEY,
-    tenders TEXT DEFAULT '[]',
-    tending_log TEXT DEFAULT '[]',
-    last_tended_timestamp INTEGER,
-    last_tender TEXT,
-    chores TEXT DEFAULT '[]'
-  )
-`);
+// Initialize database with proper error handling
+function initializeDatabase() {
+  // Ensure the directory exists
+  const dbDir = dirname(dbPath);
+  if (!existsSync(dbDir)) {
+    mkdirSync(dbDir, { recursive: true });
+    console.log(`Created database directory: ${dbDir}`);
+  }
+
+  let db: Database;
+  
+  try {
+    // Try to open existing database
+    db = new Database(dbPath);
+    
+    // Test if it's a valid database by running a simple query
+    db.query("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1;").all();
+    console.log(`Connected to existing database: ${dbPath}`);
+    
+  } catch (error) {
+    if (existsSync(dbPath)) {
+      // Database file exists but is corrupted
+      console.error(`🚨 CRITICAL: Database file exists but is corrupted!`);
+      console.error(`Path: ${dbPath}`);
+      console.error(`Error: ${error}`);
+      console.error(`\n⚠️  MANUAL ACTION REQUIRED:`);
+      console.error(`1. Backup the corrupted file if it contains important data`);
+      console.error(`2. Remove or rename the corrupted file: ${dbPath}`);
+      console.error(`3. Restart the application to create a fresh database`);
+      console.error(`\nAlternatively, set RECREATE_CORRUPTED_DB=true to auto-recreate (WILL DELETE DATA)`);
+      
+      // Check if user explicitly wants to recreate corrupted databases
+      if (process.env.RECREATE_CORRUPTED_DB === "true") {
+        console.warn(`\n🗑️  RECREATE_CORRUPTED_DB=true - Removing corrupted database...`);
+        try {
+          unlinkSync(dbPath);
+          console.log(`Removed corrupted database file: ${dbPath}`);
+          db = new Database(dbPath);
+          console.log(`Created new database: ${dbPath}`);
+        } catch (recreateError) {
+          console.error(`Failed to recreate database: ${recreateError}`);
+          throw recreateError;
+        }
+      } else {
+        throw new Error(`Corrupted database detected at ${dbPath}. See logs above for resolution steps.`);
+      }
+    } else {
+      // Database file doesn't exist, create a new one
+      try {
+        db = new Database(dbPath);
+        console.log(`Created new database: ${dbPath}`);
+      } catch (createError) {
+        console.error(`Failed to create new database: ${createError}`);
+        throw createError;
+      }
+    }
+  }
+
+  // Create tables
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS shitty_instances (
+        sync_id TEXT PRIMARY KEY,
+        tenders TEXT DEFAULT '[]',
+        tending_log TEXT DEFAULT '[]',
+        last_tended_timestamp INTEGER,
+        last_tender TEXT,
+        chores TEXT DEFAULT '[]'
+      )
+    `);
+    console.log("Database tables initialized successfully");
+  } catch (tableError) {
+    console.error(`Failed to create tables: ${tableError}`);
+    throw tableError;
+  }
+
+  return db;
+}
+
+const db = initializeDatabase();
 
 // Helper functions
 async function getInstanceData(syncId: string) {
