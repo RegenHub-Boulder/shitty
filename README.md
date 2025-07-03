@@ -89,3 +89,5 @@ For self-hosting on your Mac:
 
 
 The app works great as a kitchen tablet display or shared household dashboard!
+
+this is a bump
