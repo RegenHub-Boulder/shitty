@@ -451,6 +451,90 @@ const server = Bun.serve({
           headers: JSON_HEADERS,
         });
       }
+      // Import Data API
+      else if (apiResource === "import" && req.method === "POST") {
+        try {
+          const importData = await req.json();
+          
+          // Validate the import data structure
+          if (!importData.caretakers || !Array.isArray(importData.caretakers)) {
+            return createErrorResponse("Invalid import data: 'caretakers' must be an array");
+          }
+          if (!importData.tending_log || !Array.isArray(importData.tending_log)) {
+            return createErrorResponse("Invalid import data: 'tending_log' must be an array");
+          }
+          if (!importData.chores || !Array.isArray(importData.chores)) {
+            return createErrorResponse("Invalid import data: 'chores' must be an array");
+          }
+          
+          // Get current instance data
+          let instanceData = await getInstanceData(syncId);
+          
+          // Create maps of existing items by ID for efficient lookup
+          const existingTendersById = new Map(instanceData.tenders.map((t: any) => [t.id, t]));
+          const existingChoresById = new Map(instanceData.chores.map((c: any) => [c.id, c]));
+          const existingHistoryById = new Map(instanceData.tending_log.map((h: any) => [h.id, h]));
+          
+          // Process caretakers -> tenders
+          for (const caretaker of importData.caretakers) {
+            if (!existingTendersById.has(caretaker.id)) {
+              instanceData.tenders.push({
+                id: caretaker.id,
+                name: caretaker.name
+              });
+            }
+          }
+          
+          // Process chores
+          for (const chore of importData.chores) {
+            if (!existingChoresById.has(chore.id)) {
+              instanceData.chores.push({
+                id: chore.id,
+                name: chore.name,
+                icon: chore.icon
+              });
+            }
+          }
+          
+          // Process history entries
+          for (const entry of importData.tending_log) {
+            if (!existingHistoryById.has(entry.id)) {
+              instanceData.tending_log.push({
+                id: entry.id,
+                timestamp: entry.timestamp,
+                person: entry.person,
+                chore_id: entry.chore_id,
+                notes: entry.notes || null
+              });
+            }
+          }
+          
+          // Update last tended info if the imported data has more recent entries
+          if (importData.last_tended_timestamp && 
+              (!instanceData.last_tended_timestamp || 
+               importData.last_tended_timestamp > instanceData.last_tended_timestamp)) {
+            instanceData.last_tended_timestamp = importData.last_tended_timestamp;
+            instanceData.last_tender = importData.last_caretaker || importData.last_tender || null;
+          }
+          
+          // Save updated data
+          await updateInstanceData(syncId, instanceData);
+          
+          return new Response(JSON.stringify({ 
+            success: true,
+            imported: {
+              tenders: importData.caretakers.length,
+              chores: importData.chores.length,
+              history_entries: importData.tending_log.length
+            }
+          }), {
+            headers: JSON_HEADERS,
+          });
+        } catch (error: any) {
+          console.error("Import error:", error);
+          return createErrorResponse(`Import failed: ${error.message || "Unknown error"}`);
+        }
+      }
 
       return createErrorResponse("API endpoint not found or method not allowed.", 404);
     }

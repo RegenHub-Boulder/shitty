@@ -615,8 +615,10 @@ function HistoryView() {
   const syncId = useSyncId();
   if (!syncId) return <div>Loading sync information...</div>;
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <ShitHistoryComponent />
+    <div className="h-full overflow-y-auto">
+      <div className="w-full max-w-2xl mx-auto p-4">
+        <ShitHistoryComponent />
+      </div>
     </div>
   );
 }
@@ -816,22 +818,27 @@ function SyncSettingsView({ updateAvailable, onUpdate, currentClientVersion }: {
   const syncId = useSyncId();
   if (!syncId) return <div>Loading sync information...</div>;
   return (
-    <div className="space-y-6 w-full max-w-lg p-4">
-      {/* Updates Section */}
-      <UpdatesComponent
-        updateAvailable={updateAvailable}
-        onUpdate={onUpdate}
-        currentClientVersion={currentClientVersion}
-      />
+    <div className="h-full overflow-y-auto">
+      <div className="space-y-6 w-full max-w-lg mx-auto p-4 pb-8">
+        {/* Updates Section */}
+        <UpdatesComponent
+          updateAvailable={updateAvailable}
+          onUpdate={onUpdate}
+          currentClientVersion={currentClientVersion}
+        />
 
-      {/* Chores Management Section */}
-      <ManageChoresComponent />
+        {/* Import Data Section */}
+        <ImportDataComponent />
 
-      {/* Tenders Management Section */}
-      <ManageTendersComponent />
+        {/* Chores Management Section */}
+        <ManageChoresComponent />
 
-      {/* Sync Settings */}
-      <SyncSettingsComponent currentSyncId={syncId} />
+        {/* Tenders Management Section */}
+        <ManageTendersComponent />
+
+        {/* Sync Settings */}
+        <SyncSettingsComponent currentSyncId={syncId} />
+      </div>
     </div>
   );
 }
@@ -1266,6 +1273,167 @@ function ManageTendersComponent() {
         </div>
       </section>
     </div>
+  );
+}
+
+function ImportDataComponent() {
+  const syncId = useSyncId();
+  const [importData, setImportData] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [parsedData, setParsedData] = useState<any>(null);
+
+  const validateImportData = (jsonStr: string) => {
+    try {
+      const data = JSON.parse(jsonStr);
+      
+      // Validate required fields
+      if (!data.caretakers || !Array.isArray(data.caretakers)) {
+        return "Invalid data: 'caretakers' must be an array";
+      }
+      if (!data.tending_log || !Array.isArray(data.tending_log)) {
+        return "Invalid data: 'tending_log' must be an array";
+      }
+      if (!data.chores || !Array.isArray(data.chores)) {
+        return "Invalid data: 'chores' must be an array";
+      }
+      
+      // Validate caretaker structure
+      for (const caretaker of data.caretakers) {
+        if (!caretaker.id || !caretaker.name) {
+          return "Invalid data: Each caretaker must have 'id' and 'name'";
+        }
+      }
+      
+      // Validate chore structure
+      for (const chore of data.chores) {
+        if (!chore.id || !chore.name || !chore.icon) {
+          return "Invalid data: Each chore must have 'id', 'name', and 'icon'";
+        }
+      }
+      
+      // Validate history entries
+      for (const entry of data.tending_log) {
+        if (!entry.id || !entry.timestamp || !entry.person) {
+          return "Invalid data: Each history entry must have 'id', 'timestamp', and 'person'";
+        }
+      }
+      
+      setParsedData(data);
+      return null;
+    } catch (e) {
+      return "Invalid JSON format";
+    }
+  };
+
+  const handleImport = async () => {
+    if (!syncId || !parsedData) return;
+    
+    const validationError = validateImportData(importData);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    
+    setIsImporting(true);
+    setError("");
+    
+    try {
+      const response = await fetch(`/api/${syncId}/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsedData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Import failed: ${response.status}`);
+      }
+      
+      setSuccess(true);
+      setImportData("");
+      setParsedData(null);
+      
+      // Reload the page after a short delay to show the imported data
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } catch (error: any) {
+      setError(error.message || "Import failed");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const handleDataChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setImportData(value);
+    setError("");
+    setSuccess(false);
+    
+    if (value.trim()) {
+      const validationError = validateImportData(value);
+      if (validationError) {
+        setError(validationError);
+      }
+    } else {
+      setParsedData(null);
+    }
+  };
+
+  return (
+    <section className="p-4 bg-gradient-to-br from-yellow-50 to-amber-50 rounded-lg shadow-lg border-2 border-amber-200">
+      <h3 className="text-xl mb-3 font-semibold text-amber-700">📥 Import Data</h3>
+      
+      <p className="text-sm text-amber-600 mb-3">
+        Import data from another Shitty instance. This will create all caretakers, chores, and history entries.
+      </p>
+      
+      <div className="space-y-3">
+        <textarea
+          value={importData}
+          onChange={handleDataChange}
+          placeholder='Paste your exported JSON data here...'
+          className="w-full h-40 p-3 border border-amber-300 rounded-md bg-yellow-50 focus:ring-amber-500 focus:border-amber-500 font-mono text-xs"
+          disabled={isImporting}
+        />
+        
+        {error && (
+          <div className="bg-red-100 border border-red-300 text-red-700 px-3 py-2 rounded-md text-sm">
+            {error}
+          </div>
+        )}
+        
+        {success && (
+          <div className="bg-green-100 border border-green-300 text-green-700 px-3 py-2 rounded-md text-sm">
+            Data imported successfully! Reloading...
+          </div>
+        )}
+        
+        {parsedData && !error && (
+          <div className="bg-amber-100 border border-amber-300 p-3 rounded-md text-sm">
+            <h4 className="font-semibold text-amber-800 mb-2">Preview:</h4>
+            <ul className="space-y-1 text-amber-700">
+              <li>• {parsedData.caretakers.length} caretakers</li>
+              <li>• {parsedData.chores.length} chores</li>
+              <li>• {parsedData.tending_log.length} history entries</li>
+            </ul>
+            <div className="mt-3 p-2 bg-yellow-100 rounded text-xs">
+              <strong className="text-amber-800">⚠️ Warning:</strong> This will add all items to your existing data. Duplicate IDs will be handled by the server.
+            </div>
+          </div>
+        )}
+        
+        <button
+          onClick={handleImport}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-md font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+          disabled={isImporting || !parsedData || !!error || !importData.trim()}
+        >
+          {isImporting ? "Importing..." : "Import Data"}
+        </button>
+      </div>
+    </section>
   );
 }
 
