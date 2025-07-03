@@ -5,7 +5,7 @@ import { dirname } from "path";
 
 const isDev = process.env.NODE_ENV !== "production";
 const dbPath = process.env.DB_PATH || (isDev ? "shitty.db" : "/app/data/shitty.db");
-const PWA_APP_VERSION = "v1.0.9-simple";
+const PWA_APP_VERSION = "v1.1";
 const JSON_HEADERS = { "Content-Type": "application/json" };
 
 function createErrorResponse(message: string, status: number = 400) {
