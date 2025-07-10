@@ -250,14 +250,35 @@ function ShitView() {
     );
   }
 
-  // Use full screen width, distribute chores evenly
+  // Calculate optimal grid layout based on number of chores
+  const getGridColumns = (count: number) => {
+    if (count <= 3) return count; // 1-3 items: single row
+    if (count <= 6) return 3; // 4-6 items: 2 rows of 3
+    if (count <= 9) return 3; // 7-9 items: 3 rows of 3
+    if (count <= 12) return 4; // 10-12 items: 3 rows of 4
+    if (count <= 15) return 5; // 13-15 items: 3 rows of 5
+    return 5; // 16+ items: cap at 5 columns
+  };
+
+  const gridColumns = getGridColumns(chores.length);
+  
+  // Calculate responsive gap based on number of columns
+  const getGapClass = (columns: number) => {
+    if (columns <= 3) return 'gap-8';
+    if (columns === 4) return 'gap-6';
+    return 'gap-4'; // 5 columns
+  };
+
   return (
-    <div className="h-full w-full p-8 flex items-center justify-center">
-      <div className="w-full max-w-none grid gap-8 place-items-center" style={{
-        gridTemplateColumns: `repeat(${Math.min(chores.length, 6)}, 1fr)`,
-        gridAutoRows: 'min-content'
-      }}>
-        {chores.slice(0, 6).map((chore, index) => (
+    <div className="h-full w-full p-4 md:p-6 lg:p-8 flex items-center justify-center">
+      <div 
+        className={`w-full h-full grid ${getGapClass(gridColumns)} place-items-center`} 
+        style={{
+          gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+          gridAutoRows: 'minmax(0, 1fr)'
+        }}
+      >
+        {chores.map((chore, index) => (
           <ShitPile key={chore.id} chore={chore} onTended={fetchChoresInternal} animationIndex={index} />
         ))}
       </div>
@@ -369,10 +390,10 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTen
   }
 
   return (
-    <div className="text-center flex flex-col items-center w-48">
+    <div className="text-center flex flex-col items-center w-full max-w-xs">
       {isLoading
         ? (
-          <div className="text-2xl text-amber-700">
+          <div className="text-xl lg:text-2xl text-amber-700">
             Assembling bits
             <span>.</span>
             <span>.</span>
@@ -382,14 +403,14 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTen
         : (
           <>
             <div
-              className={`text-9xl cursor-pointer mb-4 ${getAnimationClass()} relative z-10 h-28 flex items-center justify-center`}
+              className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl cursor-pointer mb-2 sm:mb-3 md:mb-4 ${getAnimationClass()} relative z-10 h-20 sm:h-24 md:h-28 flex items-center justify-center`}
               onClick={() => setShowModal(true)}
             >
               {chore.icon}
             </div>
-            <h3 className="text-2xl font-semibold text-amber-800 mb-2 h-16 flex items-center justify-center leading-tight">{chore.name}</h3>
+            <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-amber-800 mb-1 sm:mb-2 h-12 sm:h-14 md:h-16 flex items-center justify-center leading-tight px-2">{chore.name}</h3>
             {/* Using refreshKey to trigger re-renders without affecting the DOM structure */}
-            <div key={refreshKey} className={`text-lg ${getTextColorClass()} leading-tight`}>
+            <div key={refreshKey} className={`text-sm sm:text-base md:text-lg ${getTextColorClass()} leading-tight px-2`}>
               {lastTended === null || typeof lastTended === "undefined" 
                 ? "no tending logged"
                 : `Last tended ${getTimeSinceLastTending()}${lastTender ? ` by ${lastTender}` : ""}`
