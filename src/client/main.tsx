@@ -403,7 +403,7 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTen
         : (
           <>
             <div
-              className={`text-6xl sm:text-7xl md:text-8xl lg:text-9xl cursor-pointer mb-2 sm:mb-3 md:mb-4 ${getAnimationClass()} relative z-10 h-20 sm:h-24 md:h-28 flex items-center justify-center`}
+              className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl cursor-pointer mb-2 sm:mb-3 md:mb-4 ${getAnimationClass()} relative z-10 h-14 sm:h-16 md:h-20 flex items-center justify-center`}
               onClick={() => setShowModal(true)}
             >
               {chore.icon}
