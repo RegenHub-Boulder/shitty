@@ -194,11 +194,14 @@ const server = Bun.serve({
       const manifest = {
         name: "Shitty",
         short_name: "Shitty",
+        description: "Track and manage household chores with your housemates",
         display: "standalone",
+        orientation: "any",
         background_color: "#FEF3C7",
         theme_color: "#D97706",
         start_url: "/",
         scope: "/",
+        categories: ["productivity", "lifestyle"],
         icons: [
           {
             src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
@@ -214,6 +217,7 @@ const server = Bun.serve({
             `),
             sizes: "192x192",
             type: "image/svg+xml",
+            purpose: "any maskable",
           },
           {
             src: "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
@@ -229,6 +233,7 @@ const server = Bun.serve({
             `),
             sizes: "512x512",
             type: "image/svg+xml",
+            purpose: "any maskable",
           },
         ],
       };
