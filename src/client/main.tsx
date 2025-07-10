@@ -403,14 +403,14 @@ function ShitPile({ chore, onTended, animationIndex = 0 }: { chore: Chore; onTen
         : (
           <>
             <div
-              className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl cursor-pointer mb-2 sm:mb-3 md:mb-4 ${getAnimationClass()} relative z-10 h-14 sm:h-16 md:h-20 flex items-center justify-center`}
+              className={`text-4xl sm:text-5xl md:text-6xl lg:text-7xl cursor-pointer mb-1 sm:mb-2 md:mb-3 ${getAnimationClass()} relative z-10 h-14 sm:h-16 md:h-20 flex items-center justify-center`}
               onClick={() => setShowModal(true)}
             >
               {chore.icon}
             </div>
-            <h3 className="text-lg sm:text-xl md:text-2xl font-semibold text-amber-800 mb-1 sm:mb-2 h-12 sm:h-14 md:h-16 flex items-center justify-center leading-tight px-2">{chore.name}</h3>
+            <h3 className="text-base sm:text-lg md:text-xl font-semibold text-amber-800 mb-0.5 sm:mb-1 h-8 sm:h-10 md:h-12 flex items-center justify-center leading-tight px-1">{chore.name}</h3>
             {/* Using refreshKey to trigger re-renders without affecting the DOM structure */}
-            <div key={refreshKey} className={`text-sm sm:text-base md:text-lg ${getTextColorClass()} leading-tight px-2`}>
+            <div key={refreshKey} className={`text-xs sm:text-sm md:text-base ${getTextColorClass()} leading-tight px-1`}>
               {lastTended === null || typeof lastTended === "undefined" 
                 ? "no tending logged"
                 : `Last tended ${getTimeSinceLastTending()}${lastTender ? ` by ${lastTender}` : ""}`
