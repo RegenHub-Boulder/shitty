@@ -841,16 +841,6 @@ function SyncSettingsView({ updateAvailable, onUpdate, currentClientVersion }: {
   return (
     <div className="h-full overflow-y-auto">
       <div className="space-y-6 w-full max-w-lg mx-auto p-4 pb-8">
-        {/* Updates Section */}
-        <UpdatesComponent
-          updateAvailable={updateAvailable}
-          onUpdate={onUpdate}
-          currentClientVersion={currentClientVersion}
-        />
-
-        {/* Import Data Section */}
-        <ImportDataComponent />
-
         {/* Chores Management Section */}
         <ManageChoresComponent />
 
@@ -859,6 +849,16 @@ function SyncSettingsView({ updateAvailable, onUpdate, currentClientVersion }: {
 
         {/* Sync Settings */}
         <SyncSettingsComponent currentSyncId={syncId} />
+
+        {/* Import Data Section */}
+        <ImportDataComponent />
+
+        {/* Updates Section */}
+        <UpdatesComponent
+          updateAvailable={updateAvailable}
+          onUpdate={onUpdate}
+          currentClientVersion={currentClientVersion}
+        />
       </div>
     </div>
   );
